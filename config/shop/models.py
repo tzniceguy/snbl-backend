@@ -28,10 +28,8 @@ class User(AbstractUser):
 class Customer(models.Model):
     """Customer model for storing customer-specific information"""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='customer_profile')
-    loyalty_points = models.IntegerField(default=0)
     shipping_address = models.TextField(blank=True)
     billing_address = models.TextField(blank=True)
-    preferred_payment_method = models.CharField(max_length=50, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
