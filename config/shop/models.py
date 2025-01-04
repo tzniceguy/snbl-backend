@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+from django.core.validators import RegexValidator
 
 class User(AbstractUser):
     """Custom user model extending Django's AbstractUser"""
@@ -20,7 +21,7 @@ class User(AbstractUser):
         help_text='Specific permissions for this user.',
     )
     
-    phone_number = models.CharField(max_length=15, blank=True)
+    phone_number = models.CharField(max_length=13, blank=True, validators=[RegexValidator(r'^\+?\d{9,12}$', 'Enter a valid phone number.')])
     address = models.TextField(blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -44,7 +45,6 @@ class Vendor(models.Model):
     tax_id = models.CharField(max_length=50)
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
-    rating = models.DecimalField(max_digits=3, decimal_places=2, default=0.00)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

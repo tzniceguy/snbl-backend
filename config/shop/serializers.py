@@ -1,8 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Customer, Vendor, Product
+from .models import Customer, Vendor, Product, User
 
-User = get_user_model()
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
