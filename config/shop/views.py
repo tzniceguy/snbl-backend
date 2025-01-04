@@ -2,6 +2,7 @@ from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import get_user_model
 from .models import Customer, Vendor, Product, User
@@ -78,9 +79,10 @@ class VendorViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('vendor')
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description', 'sku', 'vendor__company_name']
-    filterset_fields = ['category', 'is_active', 'vendor']
+    filterset_fields = ['category', 'vendor']
     ordering_fields = ['price', 'created_at', 'name']
     ordering = ['-created_at']
 
@@ -95,6 +97,11 @@ class ProductViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [AllowAny]
         return [permission() for permission in permission_classes]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
 
     def perform_create(self, serializer):
         vendor = Vendor.objects.get(user=self.request.user)

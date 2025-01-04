@@ -68,7 +68,7 @@ class Product(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='OTHER')
     stock = models.IntegerField(default=0)
     sku = models.CharField(max_length=50, unique=True)
-    is_active = models.BooleanField(default=True)
+    image = models.ImageField(upload_to='product-images/', blank=True, null=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 

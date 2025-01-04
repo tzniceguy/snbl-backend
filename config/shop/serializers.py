@@ -75,12 +75,19 @@ class VendorSerializer(serializers.ModelSerializer):
 
 class ProductSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor.company_name', read_only=True)
+    image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
         fields = ('id', 'name', 'vendor', 'vendor_name', 'description', 
-                 'price', 'category', 'stock', 'sku', 'is_active', 'created_at')
+                 'price', 'category', 'stock', 'sku', 
+                 'image', 'image_url', 'created_at')
         read_only_fields = ('created_at',)
+
+    def get_image_url(self, obj):
+        if obj.image:
+            return self.context['request'].build_absolute_uri(obj.image.url)
+        return None
 
     def validate_stock(self, value):
         if value < 0:
@@ -89,8 +96,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
     def validate_price(self, value):
         if value <= 0:
-            raise serializers.ValidationError("Price must be greater than zero.")
-        return value
+            raise
 
 # Nested serializers for detailed views
 class ProductDetailSerializer(ProductSerializer):
