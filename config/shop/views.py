@@ -22,7 +22,6 @@ class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['user__username', 'user__email', 'shipping_address']
-    filterset_fields = ['loyalty_points']
 
     def get_serializer_class(self):
         if self.action in ['retrieve', 'me']:
@@ -48,7 +47,7 @@ class VendorViewSet(viewsets.ModelViewSet):
     queryset = Vendor.objects.all()
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['company_name', 'user__email', 'description']
-    filterset_fields = ['is_active', 'rating']
+    filterset_fields = ['is_active']
 
     def get_serializer_class(self):
         if self.action == 'retrieve':

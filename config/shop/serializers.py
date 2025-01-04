@@ -26,9 +26,9 @@ class CustomerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Customer
-        fields = ('id', 'user', 'loyalty_points', 'shipping_address', 
-                 'billing_address', 'preferred_payment_method', 'created_at')
-        read_only_fields = ('created_at', 'loyalty_points')
+        fields = ('id', 'user', 'shipping_address', 
+                 'billing_address', 'created_at')
+        read_only_fields = ['created_at']
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
@@ -53,8 +53,8 @@ class VendorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendor
         fields = ('id', 'user', 'company_name', 'business_address', 
-                 'tax_id', 'description', 'is_active', 'rating', 'created_at')
-        read_only_fields = ('created_at', 'rating')
+                 'tax_id', 'description', 'is_active','created_at')
+        read_only_fields = ['created_at']
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
