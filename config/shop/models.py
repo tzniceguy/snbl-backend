@@ -51,6 +51,7 @@ class Vendor(models.Model):
     def __str__(self):
         return f"Vendor: {self.company_name}"
 
+
 class Product(models.Model):
     """Product model for storing product information"""
     CATEGORY_CHOICES = [
@@ -60,7 +61,6 @@ class Product(models.Model):
         ('HOME', 'Home & Garden'),
         ('OTHER', 'Other'),
     ]
-
     name = models.CharField(max_length=200)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='products')
     description = models.TextField()
@@ -82,23 +82,71 @@ class Product(models.Model):
     def __str__(self):
         return f"{self.name} - {self.sku}"
 
+class Payment(models.Model):
+    """Payment model for storing payment information"""
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('COMPLETED', 'Completed'),
+        ('FAILED', 'Failed'),
+        ('REFUNDED', 'Refunded')
+    ]
+    
 
-class Order(models.Model):
-    """Order model for storing information about an order."""
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    items = models.ManyToManyField('Product', related_name='orders')
-    payment = models.OneToOneField(
-        'Payment', 
-        on_delete=models.SET_NULL, 
-        null=True, 
-        blank=True,
-        related_name='order'
-    )
+    payment_method = models.CharField(max_length=20)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
+        return f"Payment #{self.id} - ${self.amount} ({self.status})"
+
+class Order(models.Model):
+    """Order model for storing order information"""
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('PROCESSING', 'Processing'),
+        ('SHIPPED', 'Shipped'),
+        ('DELIVERED', 'Delivered'),
+        ('CANCELLED', 'Cancelled')
+    ]
+
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='orders')
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    items = models.ManyToManyField('Product', through='OrderItem', related_name='orders')
+    payment = models.OneToOneField(
+        Payment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='order'
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    shipping_address = models.TextField()
+    tracking_number = models.CharField(max_length=100, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['customer']),
+            models.Index(fields=['status']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
         return f"Order #{self.id} - ${self.amount}"
 
-class Payment (models.Model):
-    pass
+class OrderItem(models.Model):
+    """Model for storing individual items within an order"""
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_items')
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='order_items')
+    quantity = models.PositiveIntegerField()
+    price_at_time = models.DecimalField(max_digits=10, decimal_places=2)
+    
+    class Meta:
+        unique_together = ['order', 'product']
+
+    def __str__(self):
+        return f"{self.quantity}x {self.product.name} in Order #{self.order.id}"
