@@ -1,13 +1,13 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Customer, Vendor, Product, User,Order,Payment,OrderItem
+from .models import Customer, Vendor, Product, CustomUser,Order,Payment,OrderItem, ProductCategory
 
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 
-                 'phone_number', 'address', 'created_at')
+        model = CustomUser
+        fields = ('id', 'username', 'email', 'first_name', 'last_name',
+                 'phone_number', 'date_joined')
         read_only_fields = ('created_at',)
         extra_kwargs = {
             'password': {'write_only': True}
@@ -26,13 +26,12 @@ class CustomerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Customer
-        fields = ('id', 'user', 'shipping_address', 
-                 'billing_address', 'created_at')
+        fields = ('id', 'user', 'address', 'created_at')
         read_only_fields = ['created_at']
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
-        user = User.objects.create(**user_data)
+        user = CustomUser.objects.create(**user_data)
         customer = Customer.objects.create(user=user, **validated_data)
         return customer
 
@@ -41,7 +40,7 @@ class CustomerSerializer(serializers.ModelSerializer):
         for attr, value in user_data.items():
             setattr(instance.user, attr, value)
         instance.user.save()
-        
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
@@ -52,13 +51,13 @@ class VendorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Vendor
-        fields = ('id', 'user', 'company_name', 'business_address', 
+        fields = ('id', 'user', 'company_name', 'business_address',
                  'tax_id', 'description', 'is_active','created_at')
         read_only_fields = ['created_at']
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
-        user = User.objects.create(**user_data)
+        user = CustomUser.objects.create(**user_data)
         vendor = Vendor.objects.create(user=user, **validated_data)
         return vendor
 
@@ -67,20 +66,29 @@ class VendorSerializer(serializers.ModelSerializer):
         for attr, value in user_data.items():
             setattr(instance.user, attr, value)
         instance.user.save()
-        
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         return instance
 
+class ProductCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductCategory
+        fields = ('id', 'name', 'description', 'created_at')
+        read_only_fields = ('created_at',)
+
 class ProductSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor.company_name', read_only=True)
     image_url = serializers.SerializerMethodField()
+    category = ProductCategorySerializer(read_only=True)
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=ProductCategory.objects.all(), source='category', write_only=True)
 
     class Meta:
         model = Product
-        fields = ('id', 'name', 'vendor', 'vendor_name', 'description', 
-                 'price', 'category', 'stock', 'sku', 
+        fields = ('id', 'name', 'vendor', 'vendor_name', 'description',
+                 'price', 'category', 'category_id' 'stock', 'sku',
                  'image', 'image_url', 'created_at')
         read_only_fields = ('created_at',)
 
@@ -117,16 +125,29 @@ class CustomerDetailSerializer(CustomerSerializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
-    
+
     class Meta:
         model = OrderItem
         fields = ('id', 'product', 'product_name', 'quantity', 'price_at_time')
         read_only_fields = ('price_at_time',)
 
+
+        def validate_quantity(self, value):
+                if value <= 0:
+                    raise serializers.ValidationError("Quantity must be greater than zero.")
+                return value
+
+        def validate(self, data):
+                if data['quantity'] > data['product'].stock:
+                    raise serializers.ValidationError(
+                        f"Not enough stock for {data['product'].name}. Available: {data['product'].stock}"
+                    )
+                return data
+
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ('id', 'amount', 'payment_method', 'status', 'transaction_id', 
+        fields = ('id', 'amount', 'payment_method', 'status', 'transaction_id',
                  'created_at', 'updated_at')
         read_only_fields = ('status', 'transaction_id', 'created_at', 'updated_at')
 
