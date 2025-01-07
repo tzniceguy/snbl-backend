@@ -9,7 +9,7 @@ from django.db.models import Prefetch
 from django.core.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
-from .models import Customer, Vendor, Product, User, Order, Payment
+from .models import Customer, Vendor, Product, CustomUser as User, Order, Payment
 from .serializers import (
     UserSerializer, CustomerSerializer, VendorSerializer, ProductSerializer,
     CustomerDetailSerializer, VendorDetailSerializer, ProductDetailSerializer,
@@ -161,14 +161,14 @@ class OrderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        
+
         if user.is_staff:
             return queryset
-        
+
         if hasattr(user, 'vendor_profile'):
             # Vendors can see orders containing their products
             return queryset.filter(items__vendor__user=user).distinct()
-        
+
         return queryset.filter(customer__user=user)
 
     def perform_create(self, serializer):
@@ -179,7 +179,7 @@ class OrderViewSet(viewsets.ModelViewSet):
     def process_payment(self, request, pk=None):
         order = self.get_object()
         payment_method = request.data.get('payment_method')
-        
+
         if order.status != 'PENDING':
             raise ValidationError("Only pending orders can be processed for payment")
 
@@ -193,7 +193,7 @@ class OrderViewSet(viewsets.ModelViewSet):
         for item in order.order_items.all():
             if item.quantity > item.product.stock:
                 raise ValidationError(f"Insufficient stock for product: {item.product.name}")
-            
+
             # Update stock
             item.product.stock -= item.quantity
             item.product.save()
@@ -206,14 +206,14 @@ class OrderViewSet(viewsets.ModelViewSet):
                 status='COMPLETED',
                 transaction_id=f"TRANS_{order.id}_{timezone.now().timestamp()}"
             )
-            
+
             # Update order
             order.payment = payment
             order.status = 'PROCESSING'
             order.save()
 
             return Response(OrderDetailSerializer(order).data)
-        
+
         except Exception as e:
             # Rollback stock updates in case of payment failure
             for item in order.order_items.all():
@@ -237,11 +237,11 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = Payment.objects.select_related('order__customer__user')
-        
+
         if user.is_staff:
             return queryset
-            
+
         if hasattr(user, 'vendor_profile'):
             return queryset.filter(order__items__vendor__user=user).distinct()
-            
+
         return queryset.filter(order__customer__user=user)
