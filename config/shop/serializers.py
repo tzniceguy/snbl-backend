@@ -199,7 +199,8 @@ class OrderDetailSerializer(OrderSerializer):
     items = OrderItemSerializer(source='order_items', many=True)
     payment = PaymentSerializer()
     customer = CustomerSerializer()
-    class CustomerRegisterSerializer(serializer.ModelSerializer):
+
+class CustomerRegisterSerializer(serializers.ModelSerializer):
         password = serializers.CharField(write_only=True)
         password2 = serializers.CharField(write_only=True)
 

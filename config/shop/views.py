@@ -1,4 +1,4 @@
-from rest_framework import viewsets, filters, status
+from rest_framework import viewsets, filters, status, generics
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -13,8 +13,9 @@ from .models import Customer, Vendor, Product, CustomUser as User, Order, Paymen
 from .serializers import (
     UserSerializer, CustomerSerializer, VendorSerializer, ProductSerializer,
     CustomerDetailSerializer, VendorDetailSerializer, ProductDetailSerializer,
-    OrderSerializer, OrderDetailSerializer, PaymentSerializer
+    OrderSerializer, OrderDetailSerializer, PaymentSerializer , CustomerRegisterSerializer
 )
+
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -245,3 +246,31 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
             return queryset.filter(order__items__vendor__user=user).distinct()
 
         return queryset.filter(order__customer__user=user)
+
+class CustomerRegistrationView(generics.CreateAPIView):
+    serializer_class = CustomerRegisterSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            customer = serializer.save()
+            return Response(
+                {
+                    'status': 'success',
+                    'message': 'Customer registered successfully',
+                    'data': {
+                        'id': customer.id,
+                        'username': customer.user.username,
+                        'address': customer.address
+                    }
+                },
+                status=status.HTTP_201_CREATED
+            )
+        return Response(
+            {
+                'status': 'error',
+                'message': 'registration failed',
+                'errors': serializer.errors
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )

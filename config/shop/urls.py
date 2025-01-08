@@ -11,6 +11,8 @@ router.register('orders', views.OrderViewSet, basename='order')
 router.register('payments', views.PaymentViewSet, basename='payment')
 
 
+
 urlpatterns = [
 	path('', include(router.urls)),
+	path('register/', views.CustomerRegistrationView.as_view())
 ]
