@@ -8,7 +8,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = ('id', 'username', 'email', 'first_name', 'last_name',
                  'phone_number', 'date_joined')
-        read_only_fields = ('created_at',)
+        read_only_fields = ('date_joined',)
         extra_kwargs = {
             'password': {'write_only': True}
         }
@@ -201,33 +201,38 @@ class OrderDetailSerializer(OrderSerializer):
     customer = CustomerSerializer()
 
 class CustomerRegisterSerializer(serializers.ModelSerializer):
-        password = serializers.CharField(write_only=True)
-        password2 = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True)
+    password2 = serializers.CharField(write_only=True)
+    user = UserSerializer()
 
-        class Meta:
-            model = Customer
-            fields = ('id', 'user', 'address', 'created_at', 'password', 'password2')
-            read_only_fields = ['created_at']
+    class Meta:
+        model = Customer
+        fields = ('id', 'user', 'address', 'created_at', 'password', 'password2')
+        read_only_fields = ['created_at']
 
-        def validate(self, data):
-            if data['password'] != data['password2']:
-                raise serializers.ValidationError({'password': 'Passwords must match.'})
-            return data
+    def validate(self, data):
+        # Ensure the two passwords match
+        if data['password'] != data['password2']:
+            raise serializers.ValidationError({'password': 'Passwords must match.'})
+        return data
 
-        def create(self, validated_data):
-            password = validated_data.pop('password')
-            validated_data.pop('password2')
-            address = validated_data.pop('address', '')
+    def create(self, validated_data):
+        # Extract password and address from validated data
+        password = validated_data.pop('password')
+        validated_data.pop('password2')
+        address = validated_data.pop('address', '')
 
-            # Create CustomUser first
-            user_data = {k: v for k, v in validated_data.items() if k != 'user'}
-            user = CustomUser.objects.create_user(**user_data)
-            user.set_password(password)
-            user.save()
+        # Extract user data from validated data
+        user_data = validated_data.pop('user')
 
-            # Create Customer with the user and address
-            customer = Customer.objects.create(
-                user=user,
-                address=address
-            )
-            return customer
+        # Create CustomUser instance
+        user = CustomUser.objects.create_user(**user_data)
+        user.set_password(password)
+        user.save()
+
+        # Create Customer instance linked to the user
+        customer = Customer.objects.create(
+            user=user,
+            address=address
+        )
+        return customer
