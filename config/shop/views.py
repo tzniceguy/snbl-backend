@@ -1,19 +1,21 @@
+from lib2to3.btm_utils import tokens
 from rest_framework import viewsets, filters, status, generics
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model,login
 from django.db.models import Prefetch
 from django.core.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Customer, Vendor, Product, CustomUser as User, Order, Payment
 from .serializers import (
     UserSerializer, CustomerSerializer, VendorSerializer, ProductSerializer,
     CustomerDetailSerializer, VendorDetailSerializer, ProductDetailSerializer,
-    OrderSerializer, OrderDetailSerializer, PaymentSerializer , CustomerRegisterSerializer
+    OrderSerializer, OrderDetailSerializer, PaymentSerializer , CustomerRegisterSerializer, CustomerLoginSerializer
 )
 
 
@@ -249,19 +251,31 @@ class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
 
 class CustomerRegistrationView(generics.CreateAPIView):
     serializer_class = CustomerRegisterSerializer
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             customer = serializer.save()
+
+            #generate tokens
+            refresh = RefreshToken.for_user(customer.user)
+            access_token = str(refresh.access_token)
+            refresh_token= str(refresh)
+
+            login(request, customer.user,backend='django.contrib.auth.backends.ModelBackend')
             return Response(
                 {
                     'status': 'success',
                     'message': 'Customer registered successfully',
-                    'data': {
+                    'user': {
                         'id': customer.id,
                         'username': customer.user.username,
-                        'address': customer.address
+                        'address': customer.address,
+                        'tokens': {
+                            'access': access_token,
+                            'refresh': refresh_token
+                        }
                     }
                 },
                 status=status.HTTP_201_CREATED
@@ -270,6 +284,65 @@ class CustomerRegistrationView(generics.CreateAPIView):
             {
                 'status': 'error',
                 'message': 'registration failed',
+                'errors': serializer.errors
+            },
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+class CustomerLoginView(generics.CreateAPIView):
+    serializer_class = CustomerLoginSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+
+        if serializer.is_valid():
+            try:
+                # Authenticate user
+                user = serializer.authenticate(
+                    request,
+                    username=serializer.validated_data['username'],
+                    password=serializer.validated_data['password']
+                )
+
+                if user is None:
+                    return Response(
+                        {
+                            'status': 'error',
+                            'message': 'Invalid credentials'
+                        },
+                        status=status.HTTP_401_UNAUTHORIZED
+                    )
+
+                # Log the user in
+                login(request, user)
+
+                return Response(
+                    {
+                        'status': 'success',
+                        'message': 'Customer logged in successfully',
+                        'user': {
+                            'id': user.id,
+                            'username': user.username,
+                            'email': user.email,
+                        }
+                    },
+                    status=status.HTTP_200_OK
+                )
+
+            except Exception as e:
+                return Response(
+                    {
+                        'status': 'error',
+                        'message': 'Login failed',
+                        'detail': str(e)
+                    },
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        return Response(
+            {
+                'status': 'error',
+                'message': 'Invalid data',
                 'errors': serializer.errors
             },
             status=status.HTTP_400_BAD_REQUEST
