@@ -16,4 +16,5 @@ urlpatterns = [
 	path('', include(router.urls)),
 	path('register/', views.CustomerRegistrationView.as_view()),
 	path('login/', views.CustomerLoginView.as_view()),
+	path('logout/', views.CustomerLogoutView.as_view()),
 ]
