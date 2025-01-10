@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from .models import Customer, Vendor, Product, CustomUser,Order,Payment,OrderItem, ProductCategory
 
 
@@ -236,3 +236,14 @@ class CustomerRegisterSerializer(serializers.ModelSerializer):
             address=address
         )
         return customer
+
+class CustomerLoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
+
+    def authenticate(self, request, username=None, password=None):
+        try:
+            user = authenticate(request, username=username, password=password)
+            return user
+        except:
+            return None
