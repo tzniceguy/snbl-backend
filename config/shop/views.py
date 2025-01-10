@@ -266,8 +266,7 @@ class CustomerRegistrationView(generics.CreateAPIView):
             login(request, customer.user,backend='django.contrib.auth.backends.ModelBackend')
             return Response(
                 {
-                    'status': 'success',
-                    'message': 'Customer registered successfully',
+
                     'user': {
                         'id': customer.id,
                         'username': customer.user.username,
@@ -312,18 +311,24 @@ class CustomerLoginView(generics.CreateAPIView):
                         },
                         status=status.HTTP_401_UNAUTHORIZED
                     )
-
+                    #generate tokens
+                refresh = RefreshToken.for_user(user)
+                access_token = str(refresh.access_token)
+                refresh_token= str(refresh)
                 # Log the user in
                 login(request, user)
 
                 return Response(
                     {
-                        'status': 'success',
-                        'message': 'Customer logged in successfully',
+
                         'user': {
                             'id': user.id,
                             'username': user.username,
                             'email': user.email,
+                            'tokens': {
+                                'access': access_token,
+                                'refresh': refresh_token
+                            }
                         }
                     },
                     status=status.HTTP_200_OK
@@ -347,3 +352,22 @@ class CustomerLoginView(generics.CreateAPIView):
             },
             status=status.HTTP_400_BAD_REQUEST
         )
+
+class CustomerLogoutView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            refresh_token = request.data['refresh']
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {
+                    'status': 'error',
+                    'message': 'Logout failed',
+                    'detail': str(e)
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
