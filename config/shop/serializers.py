@@ -88,7 +88,11 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = ('id', 'name','slug', 'vendor_name', 'description',
                  'price', 'category', 'stock', 'sku',
                  'image_url', 'created_at')
+        lookup_field = ['id', 'slug']
         read_only_fields = ('created_at',)
+        extra_kwargs = {
+            'url': {'lookup_field': 'slug'}
+        }
 
 
 

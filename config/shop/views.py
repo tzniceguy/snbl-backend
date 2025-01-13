@@ -125,6 +125,7 @@ class ProductViewSet(viewsets.ModelViewSet):
     }
     ordering_fields = ['price', 'created_at', 'name', 'stock']
     ordering = ['-created_at']
+    lookup_field = 'slug'
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
