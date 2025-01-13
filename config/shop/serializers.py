@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model, authenticate
+from django.contrib.auth import  authenticate
 from .models import Customer, Vendor, Product, CustomUser,Order,Payment,OrderItem, ProductCategory
 
 
@@ -52,8 +52,8 @@ class VendorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vendor
         fields = ('id', 'user', 'company_name', 'business_address',
-                 'tax_id', 'description', 'is_active','created_at')
-        read_only_fields = ['created_at']
+                 'tax_id', 'description')
+
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
@@ -81,16 +81,16 @@ class ProductCategorySerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     vendor_name = serializers.CharField(source='vendor.company_name', read_only=True)
     image_url = serializers.SerializerMethodField()
-    category = ProductCategorySerializer(read_only=True)
-    category_id = serializers.PrimaryKeyRelatedField(
-        queryset=ProductCategory.objects.all(), source='category', write_only=True)
+    category = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
         model = Product
-        fields = ('id', 'name', 'vendor', 'vendor_name', 'description',
-                 'price', 'category', 'category_id' 'stock', 'sku',
-                 'image', 'image_url', 'created_at')
+        fields = ('id', 'name', 'vendor_name', 'description',
+                 'price', 'category', 'stock', 'sku',
+                 'image_url', 'created_at')
         read_only_fields = ('created_at',)
+
+
 
     def get_image_url(self, obj):
         if obj.image:
