@@ -1,0 +1,63 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django settings and secrets
+*.env
+.env.*
+settings_local.py
+
+# Database files
+db.sqlite3
+db.sqlite3-journal
+
+# Media uploads
+/media/
+*.log
+
+# Static files
+/static/
+staticfiles/
+*.sass-cache
+
+# Virtual environment
+venv/
+ENV/
+env/
+.venv/
+
+# IDE and editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Coverage and test reports
+.coverage
+coverage.xml
+*.cover
+*.coverage
+
+# Migrations
+**/migrations/*.py
+!**/migrations/__init__.py
+
+# Compiled translation files
+*.mo
+
+# Python egg files
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Cache files
+*.cache
+*.tmp
