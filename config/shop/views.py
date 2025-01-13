@@ -113,6 +113,7 @@ class VendorViewSet(viewsets.ModelViewSet):
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('vendor').prefetch_related('order_items')
+    seriaalizer_class = ProductDetailSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['name', 'description', 'sku', 'vendor__company_name']

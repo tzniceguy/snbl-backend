@@ -108,7 +108,7 @@ class ProductSerializer(serializers.ModelSerializer):
 
 # Nested serializers for detailed views
 class ProductDetailSerializer(ProductSerializer):
-    vendor = VendorSerializer(read_only=True)
+    pass
 
 class VendorDetailSerializer(VendorSerializer):
     products = ProductSerializer(many=True, read_only=True)
