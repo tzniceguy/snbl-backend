@@ -1,11 +1,11 @@
-from lib2to3.btm_utils import tokens
+
 from rest_framework import viewsets, filters, status, generics
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
-from django.contrib.auth import get_user_model,login
+from django.contrib.auth import login
 from django.db.models import Prefetch
 from django.core.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
@@ -63,11 +63,12 @@ class VendorViewSet(viewsets.ModelViewSet):
     queryset = Vendor.objects.select_related('user')
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['company_name', 'user__email', 'description']
-    filterset_fields = ['is_active']
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
             return VendorDetailSerializer
+        elif self.action == 'create':
+            return VendorCreateSerializer
         return VendorSerializer
 
     def get_permissions(self):
@@ -76,6 +77,20 @@ class VendorViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
+
+    def create(self, request, *args, **kwargs):
+            # Check if user already has a vendor profile
+            if Vendor.objects.filter(user=request.user).exists():
+                raise ValidationError("You already have a vendor profile")
+
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
     @action(detail=False, methods=['GET'], permission_classes=[IsAuthenticated])
     def me(self, request):
