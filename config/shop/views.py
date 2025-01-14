@@ -1,5 +1,7 @@
 
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, filters, status, generics
+from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -15,7 +17,7 @@ from .models import Customer, Vendor, Product, CustomUser as User, Order, Paymen
 from .serializers import (
     UserSerializer, CustomerSerializer, VendorSerializer, ProductSerializer,
     CustomerDetailSerializer, VendorDetailSerializer, ProductDetailSerializer,
-    OrderSerializer, OrderDetailSerializer, PaymentSerializer , CustomerRegisterSerializer, CustomerLoginSerializer
+    OrderSerializer, OrderDetailSerializer, PaymentSerializer , CustomerRegisterSerializer, CustomerLoginSerializer,
 )
 
 
@@ -370,15 +372,29 @@ class CustomerLoginView(generics.CreateAPIView):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-class CustomerLogoutView(generics.GenericAPIView):
+
+class CustomerLogoutView(APIView):
+    """
+    API view to handle logout by blacklisting the refresh token.
+    Requires authenticated users.
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         try:
-            refresh_token = request.data['refresh']
+            refresh_token = request.data.get('refresh')
+
+            if not refresh_token:
+                return Response(
+                    {'status': 'error', 'message': 'Refresh token is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             token = RefreshToken(refresh_token)
             token.blacklist()
+
             return Response(status=status.HTTP_200_OK)
+
         except Exception as e:
             return Response(
                 {
