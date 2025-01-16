@@ -1,5 +1,4 @@
 
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, filters, status, generics
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
@@ -195,6 +194,7 @@ class OrderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         customer = get_object_or_404(Customer, user=self.request.user)
+
         serializer.save(customer=customer)
 
     @action(detail=True, methods=['POST'])
