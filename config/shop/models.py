@@ -115,6 +115,14 @@ class Order(models.Model):
         ('DELIVERED', 'Delivered'),
         ('CANCELLED', 'Cancelled')
     ]
+
+    PAYMENT_STATUS_CHOICES =[
+        ('UNPAID', 'Unpaid'),
+        ('PARTIALLY_PAID', 'Partially Paid'),
+        ('PAID', 'Paid'),
+        ('REFUNDED', 'Refunded')
+    ]
+
     '''function to auto generate tracking number for an order'''
     @staticmethod
     def generate_tracking_number(id):
@@ -124,34 +132,55 @@ class Order(models.Model):
 
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='orders')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    items = models.ManyToManyField('Product', through='OrderItem', related_name='orders')
-    payment = models.OneToOneField(
-        Payment,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='order'
-    )
+    items = models.ManyToManyField(Product, through='OrderItem', related_name='orders')
+    payment = models.ManyToManyField(Payment, related_name='order', blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='UNPAID')
+    amount_paid=models.DecimalField(max_digits=10, decimal_places=2, default=0)
     shipping_address = models.TextField()
     tracking_number = models.CharField(max_length=30, null=True, blank=True, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         indexes = [
             models.Index(fields=['customer']),
             models.Index(fields=['status']),
+            models.Index(fields=['payment_status']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['tracking_number']),
         ]
+
+    def updatePaymentStatus(self):
+        """update payment status based on amount paid"""
+        total_paid = self.amount_paid
+        if total_paid >= self.amount:
+            self.payment_status = 'PAID'
+        elif total_paid > 0:
+            self.payment_status = 'PARTIALLY_PAID'
+        else:
+            self.payment_status = 'UNPAID'
+
+    def addPayment(self, payment):
+        """Add payment to order and update payment status"""
+        self.payment.add(payment)
+        self.amount_paid += payment.amount
+        self.update_payment_status()
+
+        if self.payment_status == 'PAID' and not self.tracking_number:
+            self.tracking_number = self.generate_tracking_number(self.id)
+            self.save()
 
     def save(self, *args, **kwargs):
             """Override save to generate tracking number if not set."""
-            if not self.tracking_number:
-                # Save the instance first to get the ID
-                super().save(*args, **kwargs)
+            if not self.tracking_number and not self.id:
+                # Save the instance and get id
                 self.tracking_number = self.generate_tracking_number(self.id)
+                super().save(*args, **kwargs)
+            else:
+                #normal save for updates
+                super().save(*args, **kwargs)
 
-            super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Order #{self.id} - ${self.amount}"
