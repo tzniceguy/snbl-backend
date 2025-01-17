@@ -165,21 +165,24 @@ class Order(models.Model):
         """Add payment to order and update payment status"""
         self.payment.add(payment)
         self.amount_paid += payment.amount
-        self.update_payment_status()
+        self.updatePaymentStatus()
 
         if self.payment_status == 'PAID' and not self.tracking_number:
             self.tracking_number = self.generate_tracking_number(self.id)
             self.save()
 
     def save(self, *args, **kwargs):
-            """Override save to generate tracking number if not set."""
-            if not self.tracking_number and not self.id:
-                # Save the instance and get id
-                self.tracking_number = self.generate_tracking_number(self.id)
-                super().save(*args, **kwargs)
-            else:
-                #normal save for updates
-                super().save(*args, **kwargs)
+        """Override save to handle tracking number generation."""
+        if not self.tracking_number:
+            # Save to generate an ID if not already assigned
+            super().save(*args, **kwargs)
+            # Generate the tracking number using the ID
+            self.tracking_number = self.generate_tracking_number(self.id)
+            # Save again with the tracking number
+            super().save(*args, **kwargs)
+        else:
+            # Save normally if tracking number already exists
+            super().save(*args, **kwargs)
 
 
     def __str__(self):
