@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+from datetime import datetime
 from django.core.validators import RegexValidator
 from django.utils.text import slugify
 
@@ -59,7 +60,7 @@ class Product(models.Model):
     """Product model for storing product information"""
     category = models.ForeignKey(ProductCategory, on_delete=models.PROTECT, related_name='products')
     name = models.CharField(max_length=200)
-    slug = models.SlugField(max_length=200, unique=True)
+    slug = models.SlugField(max_length=200, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='products')
     description = models.TextField()
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -71,7 +72,7 @@ class Product(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = slugify(f"{self.vendor}-{self.name})")
         super().save(*args, **kwargs)
 
     class Meta:
@@ -114,6 +115,12 @@ class Order(models.Model):
         ('DELIVERED', 'Delivered'),
         ('CANCELLED', 'Cancelled')
     ]
+    '''function to auto generate tracking number for an order'''
+    @staticmethod
+    def generate_tracking_number(id):
+        prefix = 'SNBL'
+        date = datetime.now().strftime('%Y%m%d') #format date as YYYYMMDD
+        return f"{prefix}{date}-{id:06d}"
 
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT, related_name='orders')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -127,16 +134,24 @@ class Order(models.Model):
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     shipping_address = models.TextField()
-    tracking_number = models.CharField(max_length=100, null=True, blank=True)
+    tracking_number = models.CharField(max_length=30, null=True, blank=True, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
     class Meta:
         indexes = [
             models.Index(fields=['customer']),
             models.Index(fields=['status']),
             models.Index(fields=['created_at']),
         ]
+
+    def save(self, *args, **kwargs):
+            """Override save to generate tracking number if not set."""
+            if not self.tracking_number:
+                # Save the instance first to get the ID
+                super().save(*args, **kwargs)
+                self.tracking_number = self.generate_tracking_number(self.id)
+
+            super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Order #{self.id} - ${self.amount}"
