@@ -1,4 +1,3 @@
-
 from rest_framework import viewsets, filters, status, generics
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
@@ -16,7 +15,7 @@ from .models import Customer, Vendor, Product, CustomUser as User, Order, Paymen
 from .serializers import (
     UserSerializer, CustomerSerializer, VendorSerializer, ProductSerializer,
     CustomerDetailSerializer, VendorDetailSerializer, ProductDetailSerializer,
-    OrderSerializer, OrderDetailSerializer, PaymentSerializer , CustomerRegisterSerializer, CustomerLoginSerializer,
+    OrderSerializer, PaymentSerializer , CustomerRegisterSerializer, CustomerLoginSerializer,
 )
 
 
@@ -157,91 +156,30 @@ class ProductViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 class OrderViewSet(viewsets.ModelViewSet):
-    queryset = Order.objects.select_related(
-        'customer__user',
-        'payment'
-    ).prefetch_related(
-        Prefetch('items', queryset=Product.objects.select_related('vendor'))
-    )
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = {
-        'status': ['exact'],
-        'customer': ['exact'],
-        'created_at': ['gte', 'lte'],
-        'amount': ['gte', 'lte'],
-    }
-    search_fields = ['id', 'tracking_number']
-    ordering_fields = ['created_at', 'amount', 'status']
-    ordering = ['-created_at']
-
-    def get_serializer_class(self):
-        if self.action == 'retrieve':
-            return OrderDetailSerializer
-        return OrderSerializer
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        user = self.request.user
+        return Order.objects.filter(customer=self.request.user.id)
 
-        if user.is_staff:
-            return queryset
-
-        if hasattr(user, 'vendor_profile'):
-            # Vendors can see orders containing their products
-            return queryset.filter(items__vendor__user=user).distinct()
-
-        return queryset.filter(customer__user=user)
-
-    def perform_create(self, serializer):
-        customer = get_object_or_404(Customer, user=self.request.user)
-
-        serializer.save(customer=customer)
-
-    @action(detail=True, methods=['POST'])
-    def process_payment(self, request, pk=None):
-        order = self.get_object()
-        payment_method = request.data.get('payment_method')
-
-        if order.status != 'PENDING':
-            raise ValidationError("Only pending orders can be processed for payment")
-
-        if not payment_method:
-            raise ValidationError("Payment method is required")
-
-        if order.payment:
-            raise ValidationError("Order has already been paid")
-
-        # Verify stock availability
-        for item in order.order_items.all():
-            if item.quantity > item.product.stock:
-                raise ValidationError(f"Insufficient stock for product: {item.product.name}")
-
-            # Update stock
-            item.product.stock -= item.quantity
-            item.product.save()
-
-        try:
-            # Create payment (In production, integrate with payment gateway)
-            payment = Payment.objects.create(
-                amount=order.amount,
-                payment_method=payment_method,
-                status='COMPLETED',
-                transaction_id=f"TRANS_{order.id}_{timezone.now().timestamp()}"
-            )
-
-            # Update order
-            order.payment = payment
-            order.status = 'PROCESSING'
-            order.save()
-
-            return Response(OrderDetailSerializer(order).data)
-
-        except Exception as e:
-            # Rollback stock updates in case of payment failure
-            for item in order.order_items.all():
-                item.product.stock += item.quantity
-                item.product.save()
-            raise ValidationError(f"Payment processing failed: {str(e)}")
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            try:
+                order = serializer.save()
+                return Response(
+                    self.get_serializer(order).data,
+                    status=status.HTTP_201_CREATED
+                )
+            except Exception as e:
+                return Response(
+                    {'detail': str(e)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        return Response(
+            serializer.errors,
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PaymentSerializer
