@@ -3,6 +3,7 @@ from django.contrib.auth import  authenticate
 from .models import Customer, Vendor, Product, CustomUser,Order,Payment,OrderItem, ProductCategory
 
 
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser
@@ -126,84 +127,6 @@ class CustomerDetailSerializer(CustomerSerializer):
     class Meta(CustomerSerializer.Meta):
         fields = CustomerSerializer.Meta.fields
 
-
-class OrderItemSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.name', read_only=True)
-
-    class Meta:
-        model = OrderItem
-        fields = ('id', 'product', 'product_name', 'quantity', 'price_at_time')
-        read_only_fields = ('price_at_time',)
-
-
-        def validate_quantity(self, value):
-                if value <= 0:
-                    raise serializers.ValidationError("Quantity must be greater than zero.")
-                return value
-
-        def validate(self, data):
-                if data['quantity'] > data['product'].stock:
-                    raise serializers.ValidationError(
-                        f"Not enough stock for {data['product'].name}. Available: {data['product'].stock}"
-                    )
-                return data
-
-class PaymentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Payment
-        fields = ('id', 'amount', 'payment_method', 'status', 'transaction_id',
-                 'created_at', 'updated_at')
-        read_only_fields = ('status', 'transaction_id', 'created_at', 'updated_at')
-
-class OrderSerializer(serializers.ModelSerializer):
-    items = OrderItemSerializer(source='order_items', many=True, read_only=True)
-    payment = PaymentSerializer(read_only=True)
-    customer_name = serializers.CharField(source='customer.user.username', read_only=True)
-
-    class Meta:
-        model = Order
-        fields = ('id', 'customer', 'customer_name', 'amount', 'items', 'payment',
-                 'status', 'shipping_address', 'tracking_number', 'created_at')
-        read_only_fields = ('amount', 'status', 'tracking_number', 'created_at')
-
-    def create(self, validated_data):
-        items_data = self.context.get('items', [])
-        if not items_data:
-            raise serializers.ValidationError({"items": "Order must contain at least one item."})
-
-        # Calculate total amount
-        total_amount = 0
-        for item in items_data:
-            product = Product.objects.get(pk=item['product'])
-            if product.stock < item['quantity']:
-                raise serializers.ValidationError(
-                    f"Not enough stock for product {product.name}. Available: {product.stock}")
-            total_amount += product.price * item['quantity']
-
-        # Create order
-        validated_data['amount'] = total_amount
-        order = Order.objects.create(**validated_data)
-
-        # Create order items
-        for item in items_data:
-            product = Product.objects.get(pk=item['product'])
-            OrderItem.objects.create(
-                order=order,
-                product=product,
-                quantity=item['quantity'],
-                price_at_time=product.price
-            )
-            # Update stock
-            product.stock -= item['quantity']
-            product.save()
-
-        return order
-
-class OrderDetailSerializer(OrderSerializer):
-    items = OrderItemSerializer(source='order_items', many=True)
-    payment = PaymentSerializer()
-    customer = CustomerSerializer()
-
 class CustomerRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     password2 = serializers.CharField(write_only=True)
@@ -251,3 +174,172 @@ class CustomerLoginSerializer(serializers.Serializer):
             return user
         except:
             return None
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = ('id', 'amount', 'payment_method', 'status', 'transaction_id',
+                 'created_at', 'updated_at')
+        read_only_fields = ('status', 'transaction_id', 'created_at', 'updated_at')
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    #Serializer for order items with product details
+    product = serializers.PrimaryKeyRelatedField(
+        queryset=Product.objects.all(),
+        required=True,
+        allow_null=False,
+        error_messages={
+            'required': 'Product is required.',
+            'null': 'Product cannot be null.',
+            'does_not_exist': 'Product with this ID does not exist.'
+        }
+    )
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_price = serializers.DecimalField(
+        source='product.price',
+        max_digits=10,
+        decimal_places=2,
+        read_only=True
+    )
+    quantity = serializers.IntegerField(
+        min_value=1,
+        error_messages={
+            'min_value': 'Quantity must be at least 1.',
+            'required': 'Quantity is required.'
+        }
+    )
+
+    class Meta:
+        model = OrderItem
+        fields = [
+            'id',
+            'product',
+            'product_name',
+            'product_price',
+            'quantity',
+            'subtotal'
+        ]
+        read_only_fields = ['subtotal']
+
+    def validate_product(self, value):
+        #Additional validation for product
+        if not isinstance(value, Product):
+            raise serializers.ValidationError("Invalid product ID")
+        return value
+
+    def validate_quantity(self, value):
+        #Validate quantity is positive
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than 0")
+        return value
+
+class OrderSerializer(serializers.ModelSerializer):
+    """
+    Main serializer for Order model with nested relationships
+    """
+    items = OrderItemSerializer(source='order_items', many=True,required=True,error_messages={'required': 'At least one item is required.'})
+    customer_name = serializers.CharField(source='customer.username', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    payment_status_display = serializers.CharField(
+        source='get_payment_status_display',
+        read_only=True
+    )
+
+    class Meta:
+        model = Order
+        fields = [
+            'id',
+            'customer',
+            'customer_name',
+            'amount',
+            'items',
+            'status',
+            'status_display',
+            'payment_status',
+            'payment_status_display',
+            'amount_paid',
+            'shipping_address',
+            'tracking_number',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = [
+            'customer',
+            'amount_paid',
+            'payment_status',
+            'tracking_number',
+            'created_at',
+            'updated_at'
+        ]
+
+    def validate_items(self, value):
+        """Validate that items are provided and valid"""
+        if not value:
+            raise serializers.ValidationError("At least one item is required")
+
+        # Validate each item has valid product and quantity
+        for item in value:
+            if not item.get('product'):
+                raise serializers.ValidationError("Product is required for each item")
+            if not item.get('quantity'):
+                raise serializers.ValidationError("Quantity is required for each item")
+        return value
+
+    def create(self, validated_data):
+        """Create order with nested items"""
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError("Authentication required")
+
+        items_data = validated_data.pop('orderitem_set', [])
+
+        # Calculate total amount from items
+        total_amount = sum(
+            item['product'].price * item['quantity']
+            for item in items_data
+        )
+
+        try:
+            customer = request.user.customer
+            validated_data['customer'] = customer
+        except Customer.DoesNotExist:
+            raise serializers.ValidationError("Customer profile not found")
+
+        validated_data['amount'] = total_amount
+        order = Order.objects.create(**validated_data)
+
+        # Create order items
+        for item_data in items_data:
+            OrderItem.objects.create(
+                order=order,
+                product=item_data['product'],
+                quantity=item_data['quantity']
+            )
+
+        return order
+
+    def to_internal_value(self, data):
+        """
+        Additional preprocessing of input data to handle empty strings
+        """
+        # Convert empty strings to None for proper validation
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if value == '':
+                    data[key] = None
+        return super().to_internal_value(data)
+
+class OrderListSerializer(OrderSerializer):
+    """Simplified serializer for list views"""
+    class Meta(OrderSerializer.Meta):
+        fields = [
+            'id',
+            'customer_name',
+            'amount',
+            'status_display',
+            'payment_status_display',
+            'tracking_number',
+            'created_at'
+        ]
