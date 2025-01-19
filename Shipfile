@@ -5,5 +5,4 @@ script: |
     python manage.py makemigrations
     python manage.py migrate
 
-run: |
-    gunicorn config.wsgi:application --bind 0.0.0.0:8000
+run: gunicorn config.wsgi:application --bind 0.0.0.0:8000
