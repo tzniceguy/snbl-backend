@@ -15,7 +15,7 @@ SECRET_KEY = 'django-insecure-76v*t9pd8=1_^+-c%)hrmgqt8fj$@m0i1^(%4&p8d343m8coza
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -172,9 +172,8 @@ SIMPLE_JWT = {
     "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
 
-'''CORS_ALLOWED_ORIGINS = [
+CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
-    'http://192.168.1.162:3000',
-]'''
+    'http://snbl.vercel.app/',
+]
