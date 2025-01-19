@@ -3,7 +3,11 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 from datetime import datetime
 from django.core.validators import RegexValidator
+from decimal import Decimal
+from django.core.validators import MinValueValidator
+from django.db.models import Sum
 from django.utils.text import slugify
+import uuid
 
 class CustomUser(AbstractUser):
     """Custom user model extending Django's AbstractUser"""
@@ -94,23 +98,19 @@ class Payment(models.Model):
         ('FAILED', 'Failed'),
         ('REFUNDED', 'Refunded')
     ]
-
-
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     payment_method = models.CharField(max_length=20)
+    phone_number = models.CharField(max_length=13,  null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    reference = models.CharField(max_length=100, unique=True, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Payment #{self.id} - ${self.amount} ({self.status})"
+        return f"Payment #{self.id} - ${self.amount} ({self.transaction_id})"
 
-from decimal import Decimal
-from django.db import models
-from django.core.validators import MinValueValidator
-from django.db.models import Sum
-from datetime import datetime
 
 class Order(models.Model):
     """

@@ -1,3 +1,4 @@
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets, filters, status, generics
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
@@ -6,7 +7,6 @@ from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.auth import login
-from django.db.models import Prefetch
 from django.core.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
@@ -15,8 +15,11 @@ from .models import Customer, Vendor, Product, CustomUser as User, Order, Paymen
 from .serializers import (
     UserSerializer, CustomerSerializer, VendorSerializer, ProductSerializer,
     CustomerDetailSerializer, VendorDetailSerializer, ProductDetailSerializer,
-    OrderSerializer, PaymentSerializer , CustomerRegisterSerializer, CustomerLoginSerializer,
+    OrderSerializer, PaymentSerializer , CustomerRegisterSerializer, CustomerLoginSerializer,PaymentResponseSerializer
 )
+import uuid
+from azampay import Azampay
+from django.conf import settings
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -181,30 +184,122 @@ class OrderViewSet(viewsets.ModelViewSet):
             status=status.HTTP_400_BAD_REQUEST
         )
 
-class PaymentViewSet(viewsets.ReadOnlyModelViewSet):
+class PaymentViewSet(viewsets.ModelViewSet):
+    queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = {
-        'status': ['exact'],
-        'payment_method': ['exact'],
-        'created_at': ['gte', 'lte'],
-        'amount': ['gte', 'lte'],
-    }
-    ordering_fields = ['created_at', 'amount', 'status']
-    ordering = ['-created_at']
 
-    def get_queryset(self):
-        user = self.request.user
-        queryset = Payment.objects.select_related('order__customer__user')
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.azampay = Azampay(
+            app_name=settings.AZAMPAY_CONFIG['APP_NAME'],
+            client_id=settings.AZAMPAY_CONFIG['CLIENT_ID'],
+            client_secret=settings.AZAMPAY_CONFIG['CLIENT_SECRET'],
+            sandbox=settings.AZAMPAY_CONFIG['ENVIRONMENT'],
+        )
 
-        if user.is_staff:
-            return queryset
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
-        if hasattr(user, 'vendor_profile'):
-            return queryset.filter(order__items__vendor__user=user).distinct()
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
 
-        return queryset.filter(order__customer__user=user)
+    def create(self, request, *args,**kwargs ):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            #create payment record
+            payment = serializer.save(
+                reference=str(uuid.uuid4()),
+                status='pending'
+            )
+
+            #initiate payment with azampay
+            payment_response = self.azampay.mobile_checkout(
+                amount = float(payment.amount),
+                mobile = payment.phone_number,
+                provider = settings.AZAMPAY_CONFIG['PROVIDER'],
+                external_id = payment.reference,
+            )
+            #check azampay response and update the payment record
+            if payment_response.get('success'):
+                payment.transaction_id = payment_response.get('transactionId')
+                payment.status = 'COMPLETED'
+                payment.save()
+            else:
+                payment.delete()
+                return Response({
+                    'status': 'error',
+                    'message': 'Failed to initiate payment',
+                    'azampay_response': payment_response
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+
+            # Prepare success response
+            response_data = {
+                'id': payment.id,
+                'amount': payment.amount,
+                'phone_number': payment.phone_number,
+                'reference': payment.reference,
+                'status': payment.status,
+                'azampay_response': payment_response
+            }
+
+            return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            #if payment was created but azampay call failed, delete the payment
+            if 'payment' in locals():
+                payment.delete()
+            return Response({'status': 'error','message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def update(self, request, *args, **kwargs):
+            partial = kwargs.pop('partial', False)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer.is_valid(raise_exception=True)
+            self.perform_update(serializer)
+            return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=False, methods=['post'])
+    def webhook(self, request):
+        try:
+            reference = request.data.get('externalId')
+            transaction_status = request.data.get('transactionStatus')
+
+            if not reference or not transaction_status:
+                return Response({
+                    'status': 'error',
+                    'message': 'Missing required fields',
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            payment = Payment.objects.get(reference=reference)
+
+            # Map Azampay transaction status to payment status
+            if transaction_status.lower() == 'success':
+                payment.status = 'COMPLETED'
+            elif transaction_status.lower() == 'failed':
+                payment.status = 'FAILED'
+            else:
+                payment.status = 'PENDING'
+
+            payment.save()
+
+            return Response({'status': 'success'})
+
+        except Exception as e:
+            return Response({'status': 'error', 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class CustomerRegistrationView(generics.CreateAPIView):
     serializer_class = CustomerRegisterSerializer

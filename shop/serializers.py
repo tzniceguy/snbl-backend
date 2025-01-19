@@ -179,9 +179,32 @@ class CustomerLoginSerializer(serializers.Serializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ('id', 'amount', 'payment_method', 'status', 'transaction_id',
-                 'created_at', 'updated_at')
-        read_only_fields = ('status', 'transaction_id', 'created_at', 'updated_at')
+        fields = ('id', 'amount', 'payment_method', 'transaction_id',
+                 'phone_number','status', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'status', 'reference', 'status', 'created_at','transaction_id')
+
+        def validate_phone_number(self, value):
+            #remove any spaces or special characters
+            cleaned_number = ''.join(filter(str.isdigit, value))
+
+            if not cleaned_number.startswith('255'):
+                raise serializers.ValidationError("Phone number must start with 255")
+
+            if len(cleaned_number) != 12:
+                raise serializers.ValidationError("Phone number must be 12 digits")
+            return cleaned_number
+
+        def validate_amount(self, value):
+            if value <= 0:
+                raise serializers.ValidationError("Amount must be greater than 0")
+            return value
+
+class PaymentResponseSerializer(serializers.ModelSerializer):
+    azampay_response = serializers.DictField(read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = ['id', 'reference', 'status', 'azampay_response']
 
 
 class OrderItemSerializer(serializers.ModelSerializer):
