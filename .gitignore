@@ -8,9 +8,6 @@ __pycache__/
 .env.*
 settings_local.py
 
-# Database files
-db.sqlite3
-db.sqlite3-journal
 
 # Media uploads
 /media/
