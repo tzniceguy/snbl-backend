@@ -1,6 +1,10 @@
 from pathlib import Path
 from datetime import timedelta
+import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -178,9 +182,9 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 AZAMPAY_CONFIG = {
-    'APP_NAME': 'snbl-app',
-    'CLIENT_ID' : 'e77f7e09-6714-467b-b50e-d2e1a3fde7e5',
-    'CLIENT_SECRET': 'ArfO81SZBR9FXUn7ErsUFVl2I9ncDZDC4yxa0eQGrOyBCC3V2NZ7wKI8USOjbETsI1HA5zHMzvVEO0lNJ2x7NRrXw08J1f1kvJ7CVcX98gLoKR3d3ygaPtcF3RIFxypP1exu9X640MaqubOkKMKx8N7NegwcbOHjo9m+YKj3dpXW6pjAjvGATq2LwdnPIbHoxyHTHIexbOEzaOJ5NbtM3jnZ1EXMjBcyw6QZ7qC+kdE11CL5Y5bt9JrX3lsKEzi9Mt5r7UQakr0p7Zt/7g4XYaO0FoNk9rDkdBienCaElqDRR64ImI2yf4gE+gSrlXLmJZ6Uy/2RxZedBpHbHJVtHBMTRHuo4+4AzCMu1SFnphqaFXpiqptoSzSSlZWqsKU5CMsG8Frsb59FB5MD2YlG5eYHItn9bL7O2bgdRd1wfIlTjWMEdvXFw5ZmgosMVbO3OTTWD+Hjh+HT3WPb1abFWWrmW8W+Y6/SBQzpWM7qK+TSqQoUb/+G4DqRh08jo8z7LisXN9l5ZP6UdCVXFWH6dtttKycJx6NJ4bFgVWIbBotg52hExlkQIymEjjsz+1GONAF4o1cABFRhLzrToTnJhieOzgpbSZ62Q0o0HFylGJ1SygJg4QwPLNODDCAc52R+7RzFVDwYmZ1LEPc5Ut9LqvDdBLiqCLWDHTQ50wtUTO0=',
+    'APP_NAME': os.getenv('APP_NAME'),
+    'CLIENT_ID' : os.getenv('CLIENT_ID'),
+    'CLIENT_SECRET': os.getenv('CLIENT_SECRET'),
     'PROVIDER': 'Azampesa',
     'ENVIRONMENT': True,
 }
