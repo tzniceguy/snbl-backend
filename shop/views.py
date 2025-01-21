@@ -198,16 +198,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
             sandbox=settings.AZAMPAY_CONFIG['ENVIRONMENT'],
         )
 
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-
     def create(self, request, *args,**kwargs ):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -215,7 +205,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
         try:
             #create payment record
             payment = serializer.save(
-                reference=str(uuid.uuid4()),
                 status='pending'
             )
 
@@ -224,7 +213,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 amount = float(payment.amount),
                 mobile = payment.phone_number,
                 provider = settings.AZAMPAY_CONFIG['PROVIDER'],
-                external_id = payment.reference,
+                external_id = payment.order.id,
             )
             #check azampay response and update the payment record
             if payment_response.get('success'):
@@ -245,7 +234,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 'id': payment.id,
                 'amount': payment.amount,
                 'phone_number': payment.phone_number,
-                'reference': payment.reference,
+                'order': payment.order.id,
                 'status': payment.status,
                 'azampay_response': payment_response
             }
@@ -274,16 +263,16 @@ class PaymentViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'])
     def webhook(self, request):
         try:
-            reference = request.data.get('externalId')
+            order_id = request.data.get('externalId')
             transaction_status = request.data.get('transactionStatus')
 
-            if not reference or not transaction_status:
+            if not order.id or not transaction_status:
                 return Response({
                     'status': 'error',
                     'message': 'Missing required fields',
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            payment = Payment.objects.get(reference=reference)
+            payment = Payment.objects.get(order_id=order_id)
 
             # Map Azampay transaction status to payment status
             if transaction_status.lower() == 'success':
@@ -299,7 +288,6 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({'status': 'error', 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
 
 class CustomerRegistrationView(generics.CreateAPIView):
     serializer_class = CustomerRegisterSerializer
