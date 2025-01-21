@@ -111,7 +111,6 @@ class Payment(models.Model):
     def __str__(self):
         return f"Payment #{self.id} - ${self.amount} ({self.transaction_id})"
 
-
 class Order(models.Model):
     """
     Order model for storing order information and managing payment status.
