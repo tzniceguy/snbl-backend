@@ -189,6 +189,13 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [IsAuthenticated]
 
+    AZAMPAY_STATUS_MAPPING = {
+            'success': 'COMPLETED',
+            'failed': 'FAILED',
+            'pending': 'PENDING'
+        }
+
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.azampay = Azampay(
@@ -203,9 +210,16 @@ class PaymentViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         try:
+            order = Order.objects.get(id=serializer.validated_data['order'].id)
+
+            #validate payment amount against remaining balance
+            if float(serializer.validated_data['amount']) > float(order.remaining_balance):
+                return Response({
+                    'status': 'error',
+                    'message': f'amount exceeded remaing balance of {order.remaining_balance}'}, status=status.HTTP_400_BAD_REQUEST)
             #create payment record
             payment = serializer.save(
-                status='pending'
+                status='PENDING'
             )
 
             #initiate payment with azampay
@@ -220,6 +234,29 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 payment.transaction_id = payment_response.get('transactionId')
                 payment.status = 'COMPLETED'
                 payment.save()
+
+                #update order with new payment
+                order.add_payment(payment)
+
+                response_data = {
+                    'payment': {
+                        'id': payment.id,
+                        'amount': payment.amount,
+                        'phone_number': payment.phone_number,
+                        'status': payment.status,
+                    },
+                    'order': {
+                        'id': order.id,
+                        'payment_status': order.payment_status,
+                        'amount_paid': order.amount_paid,
+                        'remaining_balance': order.remaining_balance,
+                        'tracking_number': order.tracking_number,
+                        'status': order.status
+                    },
+                    'azampay_response': payment_response
+                    }
+
+                return Response(response_data, status=status.HTTP_201_CREATED)
             else:
                 payment.delete()
                 return Response({
@@ -228,37 +265,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
                     'azampay_response': payment_response
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-
-            # Prepare success response
-            response_data = {
-                'id': payment.id,
-                'amount': payment.amount,
-                'phone_number': payment.phone_number,
-                'order': payment.order.id,
-                'status': payment.status,
-                'azampay_response': payment_response
-            }
-
-            return Response(response_data, status=status.HTTP_201_CREATED)
-
         except Exception as e:
             #if payment was created but azampay call failed, delete the payment
             if 'payment' in locals():
                 payment.delete()
             return Response({'status': 'error','message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    def update(self, request, *args, **kwargs):
-            partial = kwargs.pop('partial', False)
-            instance = self.get_object()
-            serializer = self.get_serializer(instance, data=request.data, partial=partial)
-            serializer.is_valid(raise_exception=True)
-            self.perform_update(serializer)
-            return Response(serializer.data)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'])
     def webhook(self, request):
@@ -273,16 +285,24 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             payment = Payment.objects.get(order_id=order_id)
+            status_key = transaction_status.lower()
+            new_status = self.AZAMPAY_STATUS_MAPPING.get(status_key, 'PENDING')
 
-            # Map Azampay transaction status to payment status
-            if transaction_status.lower() == 'success':
-                payment.status = 'COMPLETED'
-            elif transaction_status.lower() == 'failed':
-                payment.status = 'FAILED'
-            else:
-                payment.status = 'PENDING'
+            #ONLY UPDATE ORDERIF PAYMENT STATUS CHANGES TO COMPLETED
+            if new_status == 'COMPLETED' and payment.status != 'COMPLETED':
+                payment.status = new_status
+                payment.save()
 
-            payment.save()
+                #update order payment staus
+                order = payment.order
+                order.add_payment(payment)
+
+                return Response({
+                    'status': 'success',
+                    'order_status': order.payment_status,
+                    'amount_paid': str(order.amount_paid),
+                    'tracking_number': order.tracking_number
+                })
 
             return Response({'status': 'success'})
 
