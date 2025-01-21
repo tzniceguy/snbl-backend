@@ -104,7 +104,7 @@ class Payment(models.Model):
     phone_number = models.CharField(max_length=13,  null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     transaction_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
-    reference = models.CharField(max_length=100, unique=True, null=True, blank=True)
+    order = models.ForeignKey('Order', on_delete=models.PROTECT, null =True,blank=True, related_name ='payments')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
