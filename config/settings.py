@@ -32,14 +32,14 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
-    #3rd party
+    # 3rd party
     'rest_framework',
     'django_filters',
     'corsheaders',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
 
-    #local apps
+    # local apps
     'shop',
 ]
 
@@ -75,7 +75,7 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
-#backend
+# backend
 AUTH_USER_MODEL = 'shop.CustomUser'
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',  # Default backend
@@ -179,11 +179,12 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'http://snbl.vercel.app',
+    'http://192.168.1.162:3000'
 ]
 
 AZAMPAY_CONFIG = {
     'APP_NAME': os.getenv('APP_NAME'),
-    'CLIENT_ID' : os.getenv('CLIENT_ID'),
+    'CLIENT_ID': os.getenv('CLIENT_ID'),
     'CLIENT_SECRET': os.getenv('CLIENT_SECRET'),
     'PROVIDER': 'Azampesa',
     'ENVIRONMENT': True,
