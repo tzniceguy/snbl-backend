@@ -207,8 +207,10 @@ class PaymentResponseSerializer(serializers.ModelSerializer):
         fields = ['id', 'order', 'status', 'azampay_response']
 
 
+
+
 class OrderItemSerializer(serializers.ModelSerializer):
-    #Serializer for order items with product details
+    # Serializer for order items with product details
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),
         required=True,
@@ -233,6 +235,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'required': 'Quantity is required.'
         }
     )
+    subtotal = serializers.SerializerMethodField(read_only=True)  # Dynamically calculated field
 
     class Meta:
         model = OrderItem
@@ -242,18 +245,22 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'product_name',
             'product_price',
             'quantity',
-            'subtotal'
+            'subtotal'  # Include subtotal in the response
         ]
-        read_only_fields = ['subtotal']
+        read_only_fields = ['subtotal']  # Ensure subtotal is read-only
+
+    def get_subtotal(self, obj):
+        # Calculate subtotal as quantity * product price
+        return obj.quantity * obj.product.price
 
     def validate_product(self, value):
-        #Additional validation for product
+        # Additional validation for product
         if not isinstance(value, Product):
             raise serializers.ValidationError("Invalid product ID")
         return value
 
     def validate_quantity(self, value):
-        #Validate quantity is positive
+        # Validate quantity is positive
         if value <= 0:
             raise serializers.ValidationError("Quantity must be greater than 0")
         return value
