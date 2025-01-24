@@ -163,7 +163,14 @@ class OrderViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Order.objects.filter(customer=self.request.user.id)
+        user = self.request.user
+
+        if user.is_superuser:
+            # Superusers can view all orders
+            return Order.objects.all()
+
+        # Regular users can view only their orders
+        return Order.objects.filter(customer=user.customer)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)

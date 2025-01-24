@@ -15,7 +15,7 @@ class CustomUser(AbstractUser):
 
 class Customer(models.Model):
     """Customer model for storing customer-specific information"""
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='customer_profile')
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='customer')
     address = models.TextField(blank=True)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -25,7 +25,7 @@ class Customer(models.Model):
 
 class Vendor(models.Model):
     """Vendor model for storing vendor-specific information"""
-    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='vendor_profile')
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='vendor')
     company_name = models.CharField(max_length=100)
     business_address = models.TextField()
     tax_id = models.CharField(max_length=50)
@@ -40,13 +40,6 @@ class ProductCategory(models.Model):
     """Model for managing product categories"""
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
-    parent = models.ForeignKey(
-        'self',
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name='subcategories'
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -107,6 +100,11 @@ class Payment(models.Model):
     order = models.ForeignKey('Order', on_delete=models.PROTECT, null =True,blank=True, related_name ='payments')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def Customer(self):
+        """Retrieve customer with payment through an order"""
+        return self.order.customer if self.order else None
 
     def __str__(self):
         return f"Payment #{self.id} - ${self.amount} ({self.transaction_id})"
@@ -216,11 +214,14 @@ class Order(models.Model):
         """Update payment status based on amount paid."""
         if self.amount_paid >= self.amount:
             self.payment_status = 'PAID'
+            if not self.tracking_number:
+                self.tracking_number = self.generate_tracking_number(self.id)
         elif self.amount_paid > 0:
             self.payment_status = 'PARTIALLY_PAID'
         else:
             self.payment_status = 'UNPAID'
         self.save()
+
 
     def add_payment(self, payment):
         """
@@ -240,15 +241,12 @@ class Order(models.Model):
             self.save()
 
     def save(self, *args, **kwargs):
-        """Override save to handle tracking number generation."""
-        is_new = not self.pk
-
-        if is_new:
-            super().save(*args, **kwargs)
+        """Override save to handle tracking number generation when fully paid."""
+        if self.is_fully_paid and not self.tracking_number:
             self.tracking_number = self.generate_tracking_number(self.id)
-            super().save(*args, **kwargs)
-        else:
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
+
+
 
     def __str__(self):
         return f"Order #{self.id} - ${self.amount} - {self.get_status_display()}"
@@ -258,10 +256,19 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='order_items')
     product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name='order_items')
     quantity = models.PositiveIntegerField()
-    price_at_time = models.DecimalField(max_digits=10, decimal_places=2)
 
     class Meta:
         unique_together = ['order', 'product']
 
     def __str__(self):
         return f"{self.quantity}x {self.product.name} in Order #{self.order.id}"
+
+    @property
+    def price(self):
+        # Inherit price from the associated product
+        return self.product.price
+
+    @property
+    def subtotal(self):
+        # Calculate subtotal dynamically
+        return self.quantity * self.price
