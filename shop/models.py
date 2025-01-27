@@ -172,6 +172,7 @@ class Order(models.Model):
         default=Decimal('0.00'),
         validators=[MinValueValidator(Decimal('0.00'))]
     )
+    amount_remaining = models.DecimalField(max_digits=10,decimal_places=2, default=Decimal('0.00'), validators=[MinValueValidator(Decimal('0.00'))])
 
     # Shipping information
     shipping_address = models.TextField()
@@ -241,6 +242,8 @@ class Order(models.Model):
             self.save()
 
     def save(self, *args, **kwargs):
+        """ensuring consistency in amount paid and amount remaining"""
+        self.amount_remaining = self.amount - self.amount_paid
         """Override save to handle tracking number generation when fully paid."""
         if self.is_fully_paid and not self.tracking_number:
             self.tracking_number = self.generate_tracking_number(self.id)
