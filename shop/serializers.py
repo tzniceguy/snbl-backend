@@ -259,6 +259,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'status',
             'payment_status',
             'amount_paid',
+            'amount_remaining',
             'tracking_number',
             'created_at',
             'updated_at'
@@ -267,6 +268,7 @@ class OrderSerializer(serializers.ModelSerializer):
             'id',
             'customer',
             'amount_paid',
+            'amount_remaining',
             'payment_status',
             'tracking_number',
             'created_at',
